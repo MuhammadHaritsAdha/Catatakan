@@ -1,0 +1,133 @@
+{
+  "categories": [
+    {
+      "id": 1,
+      "name": "Konsumsi",
+      "icon": "🍜",
+      "color": "#F59E0B",
+      "isDefault": true
+    },
+    {
+      "id": 2,
+      "name": "Tempat Tinggal",
+      "icon": "🏠",
+      "color": "#3B82F6",
+      "isDefault": true
+    },
+    {
+      "id": 3,
+      "name": "Kuliah",
+      "icon": "📚",
+      "color": "#8B5CF6",
+      "isDefault": true
+    },
+    {
+      "id": 4,
+      "name": "Transportasi",
+      "icon": "🛵",
+      "color": "#10B981",
+      "isDefault": true
+    },
+    {
+      "id": 5,
+      "name": "Lifestyle",
+      "icon": "☕",
+      "color": "#EC4899",
+      "isDefault": true
+    },
+    {
+      "id": 6,
+      "name": "Tabungan",
+      "icon": "💰",
+      "color": "#06B6D4",
+      "isDefault": true
+    },
+    {
+      "id": 7,
+      "name": "Uang Saku / Gaji",
+      "icon": "💵",
+      "color": "#059669",
+      "isDefault": true
+    },
+    {
+      "id": 8,
+      "name": "Lainnya",
+      "icon": "🏷️",
+      "color": "#6B7280",
+      "isDefault": true
+    }
+  ],
+  "allocations": [
+    {
+      "id": 1,
+      "name": "Tempat Tinggal",
+      "description": "Uang kos, wifi, dan listrik bulanan",
+      "balance": 0,
+      "target": 650000,
+      "color": "#3B82F6",
+      "icon": "🏠"
+    },
+    {
+      "id": 2,
+      "name": "Konsumsi",
+      "description": "Makan harian, kantin, warteg, galon & snack",
+      "balance": 0,
+      "target": 600000,
+      "color": "#F59E0B",
+      "icon": "🍜"
+    },
+    {
+      "id": 3,
+      "name": "Tugas & Kuliah",
+      "description": "Cetak modul, fotokopi, buku kuliah & print praktikum",
+      "balance": 0,
+      "target": 150000,
+      "color": "#8B5CF6",
+      "icon": "📚"
+    },
+    {
+      "id": 4,
+      "name": "Transportasi",
+      "description": "Bensin motor, ojol, parkir & angkot",
+      "balance": 0,
+      "target": 120000,
+      "color": "#10B981",
+      "icon": "🛵"
+    },
+    {
+      "id": 5,
+      "name": "Lifestyle & Nongkrong",
+      "description": "Nongkrong warkop/cafe, nonton, game & hiburan",
+      "balance": 0,
+      "target": 180000,
+      "color": "#EC4899",
+      "icon": "☕"
+    },
+    {
+      "id": 6,
+      "name": "Tabungan Mahasiswa",
+      "description": "Dana darurat dan tabungan masa depan",
+      "balance": 5000000,
+      "target": 500000,
+      "color": "#06B6D4",
+      "icon": "💰"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "tx-1794902638097-460",
+      "description": "Dapet kiriman uang bulanan dari papi ai",
+      "amount": 5000000,
+      "type": "income",
+      "category": "Uang Saku / Gaji",
+      "allocationId": 6,
+      "allocationName": "Tabungan Mahasiswa",
+      "date": "2026-11-17T08:03:53.469Z",
+      "rawChat": "dapet kiriman uang bulanan dari papi ai 5jt",
+      "aiParsed": true,
+      "aiModel": "Qwen/Qwen2.5-7B-Instruct"
+    }
+  ],
+  "transferLogs": [],
+  "nextId": 1
+}
