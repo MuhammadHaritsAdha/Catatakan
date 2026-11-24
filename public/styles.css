@@ -1,46 +1,65 @@
-/* public/styles.css */
+/* Catatakan - Stylesheet (Figma Design Adaptation) */
 
-/* Navigation tabs */
+/* Navigation item styles for Desktop Sidebar */
 .nav-tab {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  padding: 0.5rem 0.85rem;
+  gap: 0.75rem;
+  padding: 0.625rem 0.875rem;
   border-radius: 0.75rem;
-  font-size: 0.8125rem;
-  font-weight: 600;
-  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #4b5563;
+  width: 100%;
+  text-align: left;
   transition: all 0.15s ease-in-out;
+  cursor: pointer;
 }
 
 .nav-tab:hover {
-  background-color: #f1f5f9;
-  color: #0f172a;
+  background-color: #f3f4f6;
+  color: #111827;
 }
 
 .nav-tab.active {
-  background-color: #eef2ff;
-  color: #4f46e5;
-  box-shadow: 0 1px 2px rgba(99, 102, 241, 0.1);
+  background-color: #dcfce7;
+  color: #166534;
+  font-weight: 600;
 }
 
+.nav-tab.active i,
+.nav-tab.active svg {
+  color: #166534 !important;
+}
+
+/* Mobile Bottom Navigation */
 .mobile-nav-btn {
-  color: #475569;
-  transition: all 0.15s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  color: #6b7280;
+  font-size: 0.65rem;
+  font-weight: 500;
+  padding: 0.35rem 0.5rem;
+  border-radius: 0.5rem;
+  transition: all 0.15s ease;
 }
 
 .mobile-nav-btn.active {
-  background-color: #eef2ff;
-  color: #4f46e5;
+  color: #166534;
+  font-weight: 700;
 }
 
-/* Quick chat chips */
+/* Quick Suggestion Chips in Chat AI */
 .quick-chip {
   display: inline-flex;
   align-items: center;
   font-size: 0.75rem;
   background-color: #ffffff;
-  color: #334155;
-  border: 1px solid #e2e8f0;
+  color: #374151;
+  border: 1px solid #e5e7eb;
   padding: 0.35rem 0.75rem;
   border-radius: 9999px;
   cursor: pointer;
@@ -50,18 +69,18 @@
 }
 
 .quick-chip:hover {
-  background-color: #eef2ff;
-  border-color: #c7d2fe;
-  color: #4338ca;
+  background-color: #f0fdf4;
+  border-color: #bbf7d0;
+  color: #166534;
   transform: translateY(-1px);
 }
 
-/* Modal system */
+/* Modal System */
 .modal-backdrop {
   position: fixed;
   inset: 0;
-  background-color: rgba(15, 23, 42, 0.55);
-  backdrop-filter: blur(4px);
+  background-color: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(3px);
   z-index: 50;
   display: flex;
   align-items: center;
@@ -75,7 +94,7 @@
 
 .modal-content {
   background-color: #ffffff;
-  border-radius: 1.25rem;
+  border-radius: 1rem;
   width: 100%;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
   animation: modalScaleUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
@@ -92,15 +111,15 @@
   }
 }
 
-/* Toast notifications */
+/* Toast Notifications */
 .toast-item {
   display: flex;
   align-items: center;
   gap: 0.75rem;
-  background-color: #1e293b;
+  background-color: #111827;
   color: #ffffff;
   padding: 0.75rem 1rem;
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   font-size: 0.8125rem;
   font-weight: 500;
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2);
@@ -111,7 +130,7 @@
 
 .toast-item.success {
   background-color: #064e3b;
-  border-left: 4px solid #10b981;
+  border-left: 4px solid #22c55e;
 }
 
 .toast-item.error {
@@ -120,8 +139,8 @@
 }
 
 .toast-item.info {
-  background-color: #1e1b4b;
-  border-left: 4px solid #6366f1;
+  background-color: #1f2937;
+  border-left: 4px solid #166534;
 }
 
 @keyframes toastSlideIn {
@@ -135,18 +154,37 @@
   }
 }
 
-/* Custom scrollbars */
+/* Custom Scrollbars */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
+
 ::-webkit-scrollbar-track {
   background: transparent;
 }
+
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
+  background: #d1d5db;
+  border-radius: 9999px;
 }
+
 ::-webkit-scrollbar-thumb:hover {
-  background: #94a3b8;
+  background: #9ca3af;
+}
+
+/* Smooth Tab Fade Transition */
+.tab-content {
+  animation: fadeIn 0.2s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

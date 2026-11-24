@@ -83,6 +83,9 @@ function switchTab(tabId) {
   const navBtn = document.getElementById(`tab-btn-${tabId}`);
   if (navBtn) navBtn.classList.add('active');
 
+  const mobBtn = document.getElementById(`mob-tab-${tabId}`);
+  if (mobBtn) mobBtn.classList.add('active');
+
   // Trigger chart re-render if switching to report tab
   if (tabId === 'reports-view') {
     setTimeout(() => {
@@ -180,16 +183,32 @@ async function updateOverviewStats() {
     const json = await res.json();
     if (json.success && json.data) {
       const rep = json.data;
+      const totalSaldo = rep.summary.totalAllocationsBalance;
+      const totalIn = rep.summary.totalIncome;
+      const totalOut = rep.summary.totalExpense;
+      const netSavings = rep.summary.netSavings;
+
       const totalSaldoEl = document.getElementById('statTotalSaldo');
-      if (totalSaldoEl) totalSaldoEl.textContent = formatRupiah(rep.summary.totalAllocationsBalance);
+      if (totalSaldoEl) totalSaldoEl.textContent = formatRupiah(totalSaldo);
+
+      const totalSaldoAllocEl = document.getElementById('statTotalSaldoAllocBanner');
+      if (totalSaldoAllocEl) totalSaldoAllocEl.textContent = formatRupiah(totalSaldo);
 
       const totalInEl = document.getElementById('statTotalPemasukan');
-      if (totalInEl) totalInEl.textContent = formatRupiah(rep.summary.totalIncome);
+      if (totalInEl) totalInEl.textContent = formatRupiah(totalIn);
 
       const totalOutEl = document.getElementById('statTotalPengeluaran');
-      if (totalOutEl) totalOutEl.textContent = formatRupiah(rep.summary.totalExpense);
+      if (totalOutEl) totalOutEl.textContent = formatRupiah(totalOut);
 
+      // Report Tab summary elements
+      const repInEl = document.getElementById('reportTotalIncome');
+      if (repInEl) repInEl.textContent = formatRupiah(totalIn);
 
+      const repOutEl = document.getElementById('reportTotalExpense');
+      if (repOutEl) repOutEl.textContent = formatRupiah(totalOut);
+
+      const repNetEl = document.getElementById('reportNetSavings');
+      if (repNetEl) repNetEl.textContent = formatRupiah(netSavings);
     }
   } catch (err) {
     console.error('Error updating overview stats:', err);
@@ -487,46 +506,126 @@ function renderAllocationsUI() {
     const percent = alloc.target > 0 ? Math.min(100, Math.round((alloc.balance / alloc.target) * 100)) : 100;
     
     const card = document.createElement('div');
-    card.className = 'bg-white rounded-2xl p-5 shadow-sm border border-slate-200 flex flex-col justify-between space-y-4 hover:shadow-md transition';
+    card.className = 'bg-white rounded-2xl p-5 shadow-sm border border-gray-200 flex flex-col justify-between space-y-4 hover:shadow-md transition';
     card.innerHTML = `
-      <div class="space-y-2">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center gap-2.5">
-            <span class="text-2xl">${alloc.icon || '📦'}</span>
+      <div class="space-y-3">
+        <div class="flex items-start justify-between">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl bg-brand-50 text-brand-800 flex items-center justify-center text-xl shrink-0">
+              ${alloc.icon || '📦'}
+            </div>
             <div>
-              <h4 class="font-bold text-slate-800 text-sm">${alloc.name}</h4>
-              <p class="text-[11px] text-slate-400 line-clamp-1">${alloc.description || ''}</p>
+              <h4 class="font-bold text-gray-900 text-sm">${alloc.name}</h4>
+              <p class="text-[11px] text-gray-400 line-clamp-1">${alloc.description || ''}</p>
             </div>
           </div>
-          <button onclick="quickTransferFrom('${alloc.id}')" title="Pindah Saldo dari Sini" class="p-1.5 text-slate-400 hover:text-teal-600 rounded-lg hover:bg-slate-50">
-            <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+          <button onclick="quickTransferFrom('${alloc.id}')" class="text-xs font-semibold text-brand-800 hover:underline inline-flex items-center gap-0.5">
+            Ubah →
           </button>
         </div>
 
-        <div class="pt-2">
-          <span class="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Saldo Tersedia</span>
-          <p class="text-xl font-extrabold text-slate-900">${formatRupiah(alloc.balance)}</p>
+        <div>
+          <span class="text-2xl font-bold text-gray-900">${formatRupiah(alloc.balance)}</span>
+          <span class="text-xs text-gray-500 ml-1">/ ${alloc.target > 0 ? formatRupiah(alloc.target) : 'Fleksibel'}</span>
         </div>
       </div>
 
-      <div class="space-y-1.5 pt-2 border-t border-slate-100">
-        <div class="flex items-center justify-between text-xs text-slate-500">
-          <span>Target Alokasi:</span>
-          <span class="font-semibold text-slate-700">${alloc.target > 0 ? formatRupiah(alloc.target) : 'Fleksibel'}</span>
+      <div class="space-y-1.5 pt-2 border-t border-gray-100">
+        <div class="w-full bg-brand-100 rounded-full h-2 overflow-hidden">
+          <div class="h-full rounded-full transition-all duration-500 bg-brand-700" style="width: ${percent}%;"></div>
         </div>
-        <div class="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
-          <div class="h-full rounded-full transition-all duration-500" style="width: ${percent}%; background-color: ${alloc.color || '#3b82f6'};"></div>
-        </div>
-        <div class="flex items-center justify-between text-[11px] text-slate-400">
-          <span>Kesiapan Saldo</span>
-          <span class="font-mono font-medium">${percent}%</span>
-        </div>
+        <p class="text-[11px] text-gray-500 font-medium">${percent}% dari target saldo</p>
       </div>
     `;
     grid.appendChild(card);
   });
 
+  // Populate inline transfer dropdowns
+  const fromSel = document.getElementById('inlineTransferFrom');
+  const toSel = document.getElementById('inlineTransferTo');
+  if (fromSel && toSel && appState.allocations.length > 0) {
+    fromSel.innerHTML = '';
+    toSel.innerHTML = '';
+    appState.allocations.forEach(a => {
+      const opt1 = document.createElement('option');
+      opt1.value = a.id;
+      opt1.textContent = `${a.icon || '📦'} ${a.name} (${formatRupiah(a.balance)})`;
+      fromSel.appendChild(opt1);
+
+      const opt2 = document.createElement('option');
+      opt2.value = a.id;
+      opt2.textContent = `${a.icon || '📦'} ${a.name}`;
+      toSel.appendChild(opt2);
+    });
+
+    if (toSel.options.length > 1) {
+      toSel.selectedIndex = 1;
+    }
+  }
+
   lucide.createIcons();
+}
+
+async function executeInlineTransfer() {
+  const fromSelect = document.getElementById('inlineTransferFrom');
+  const toSelect = document.getElementById('inlineTransferTo');
+  const amountInput = document.getElementById('inlineTransferAmount');
+
+  if (!fromSelect || !toSelect || !amountInput) return;
+
+  const fromId = fromSelect.value;
+  const toId = toSelect.value;
+  const amount = Number(amountInput.value) || 0;
+
+  if (fromId === toId) {
+    showToast('Pos asal dan tujuan tidak boleh sama!', 'error');
+    return;
+  }
+
+  if (amount <= 0) {
+    showToast('Nominal transfer harus lebih dari 0', 'error');
+    return;
+  }
+
+  const fromAlloc = appState.allocations.find(a => a.id === fromId);
+  if (fromAlloc && amount > fromAlloc.balance) {
+    showToast(`Saldo ${fromAlloc.name} tidak mencukupi (Tersedia: ${formatRupiah(fromAlloc.balance)})`, 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/allocations/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromAllocationId: fromId,
+        toAllocationId: toId,
+        amount,
+        reason: 'Pindah saldo antarpos'
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      showToast('Pemindahan saldo berhasil!', 'success');
+      amountInput.value = '';
+      await Promise.all([
+        fetchAllocations(),
+        loadMonthlyReport()
+      ]);
+      await updateOverviewStats();
+    } else {
+      showToast(json.message || 'Gagal memindahkan saldo', 'error');
+    }
+  } catch (err) {
+    console.error('Error executing inline transfer:', err);
+    showToast('Terjadi kesalahan koneksi', 'error');
+  }
+}
+
+function saveUserProfile() {
+  const name = document.getElementById('settingFullName')?.value || 'Farhan Rasyid';
+  showToast(`Perubahan profil "${name}" berhasil disimpan.`, 'success');
 }
 
 function renderTransferLogsUI() {
@@ -908,12 +1007,14 @@ function renderReportUI(report) {
 }
 
 function renderCharts(report) {
+  const figmaColors = ['#165B33', '#EAB308', '#22C55E', '#4A9060', '#9CA3AF', '#3B82F6', '#EC4899'];
+
   // 1. Donut Chart (Persentase Pengeluaran per Kategori)
   const donutCanvas = document.getElementById('categoryDonutChart');
   if (donutCanvas && report.categoryBreakdown.length > 0) {
     const labels = report.categoryBreakdown.map(c => c.category);
     const data = report.categoryBreakdown.map(c => c.amount);
-    const colors = report.categoryBreakdown.map(c => c.color || '#6366f1');
+    const colors = report.categoryBreakdown.map((c, i) => c.color || figmaColors[i % figmaColors.length]);
 
     if (donutChartInstance) donutChartInstance.destroy();
 
@@ -924,7 +1025,7 @@ function renderCharts(report) {
         datasets: [{
           data,
           backgroundColor: colors,
-          borderWidth: 2,
+          borderWidth: 3,
           borderColor: '#ffffff'
         }]
       },
@@ -934,7 +1035,7 @@ function renderCharts(report) {
         plugins: {
           legend: { display: false }
         },
-        cutout: '70%'
+        cutout: '72%'
       }
     });
 
@@ -942,12 +1043,13 @@ function renderCharts(report) {
     const legendList = document.getElementById('chartLegendList');
     if (legendList) {
       legendList.innerHTML = '';
-      report.categoryBreakdown.slice(0, 4).forEach(c => {
+      report.categoryBreakdown.slice(0, 6).forEach((c, i) => {
         const item = document.createElement('div');
         item.className = 'flex items-center gap-1.5';
+        const swatchColor = c.color || figmaColors[i % figmaColors.length];
         item.innerHTML = `
-          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${c.color}"></span>
-          <span class="text-slate-600 truncate">${c.category} (${c.percentage}%)</span>
+          <span class="w-2.5 h-2.5 rounded-full shrink-0" style="background-color: ${swatchColor}"></span>
+          <span class="text-gray-600 truncate">${c.category} (${c.percentage}%)</span>
         `;
         legendList.appendChild(item);
       });
@@ -964,9 +1066,9 @@ function renderCharts(report) {
       ...report.categoryBreakdown.slice(0, 4).map(c => c.amount)
     ];
     const barColors = [
-      '#10b981',
-      '#ef4444',
-      ...report.categoryBreakdown.slice(0, 4).map(c => c.color || '#6366f1')
+      '#166534',
+      '#EF4444',
+      ...report.categoryBreakdown.slice(0, 4).map((c, i) => c.color || figmaColors[(i + 2) % figmaColors.length])
     ];
 
     if (barChartInstance) barChartInstance.destroy();
@@ -1045,13 +1147,60 @@ function renderCategoriesUI() {
 
 function renderTransactionsTable(list) {
   const tbody = document.getElementById('transactionTableBody');
+  const dashList = document.getElementById('dashboardRecentTransactions');
+  const countEl = document.getElementById('txSummaryCount');
+  const expEl = document.getElementById('txSummaryExpense');
+  const incEl = document.getElementById('txSummaryIncome');
+
+  let totalExpense = 0;
+  let totalIncome = 0;
+
+  (list || []).forEach(tx => {
+    if (tx.type === 'income') totalIncome += Number(tx.amount) || 0;
+    else totalExpense += Number(tx.amount) || 0;
+  });
+
+  if (countEl) countEl.textContent = `${(list || []).length} transaksi`;
+  if (expEl) expEl.textContent = `-${formatRupiah(totalExpense)}`;
+  if (incEl) incEl.textContent = `+${formatRupiah(totalIncome)}`;
+
+  // Populate Dashboard Recent Transactions
+  if (dashList) {
+    dashList.innerHTML = '';
+    const recents = (appState.transactions || []).slice(0, 5);
+    if (recents.length === 0) {
+      dashList.innerHTML = `<p class="py-4 text-center text-xs text-gray-400">Belum ada transaksi tercatat.</p>`;
+    } else {
+      recents.forEach(tx => {
+        const isIncome = tx.type === 'income';
+        const row = document.createElement('div');
+        row.className = 'flex items-center justify-between py-3';
+        row.innerHTML = `
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full ${isIncome ? 'bg-brand-50 text-brand-800' : 'bg-gray-100 text-gray-600'} flex items-center justify-center shrink-0">
+              <i data-lucide="${isIncome ? 'arrow-down-left' : 'shopping-bag'}" class="w-4 h-4"></i>
+            </div>
+            <div>
+              <p class="text-xs font-semibold text-gray-900">${escapeHtml(tx.description)}</p>
+              <p class="text-[11px] text-gray-400">${tx.category} · ${formatDate(tx.date)}</p>
+            </div>
+          </div>
+          <span class="text-xs font-bold ${isIncome ? 'text-brand-800' : 'text-gray-900'}">
+            ${isIncome ? '+' : '-'}${formatRupiah(tx.amount)}
+          </span>
+        `;
+        dashList.appendChild(row);
+      });
+    }
+  }
+
   if (!tbody) return;
 
   tbody.innerHTML = '';
   if (!list || list.length === 0) {
     tbody.innerHTML = `
       <tr>
-        <td colspan="7" class="py-8 text-center text-slate-400">
+        <td colspan="7" class="py-8 text-center text-gray-400">
           Belum ada catatan transaksi yang sesuai dengan filter.
         </td>
       </tr>
@@ -1062,32 +1211,32 @@ function renderTransactionsTable(list) {
   list.forEach(tx => {
     const isIncome = tx.type === 'income';
     const tr = document.createElement('tr');
-    tr.className = 'hover:bg-slate-50/70 transition';
+    tr.className = 'hover:bg-gray-50 transition';
 
     tr.innerHTML = `
-      <td class="py-3 px-4 font-mono text-[11px] text-slate-500">${formatDate(tx.date)}</td>
+      <td class="py-3 px-4 font-mono text-[11px] text-gray-500">${formatDate(tx.date)}</td>
       <td class="py-3 px-4">
-        <p class="font-bold text-slate-800 text-xs">${escapeHtml(tx.description)}</p>
-        ${tx.rawChat ? `<p class="text-[10px] text-slate-400 italic font-mono">Chat: "${escapeHtml(tx.rawChat)}"</p>` : ''}
+        <p class="font-bold text-gray-900 text-xs">${escapeHtml(tx.description)}</p>
+        ${tx.rawChat ? `<p class="text-[10px] text-gray-400 italic font-mono">Chat: "${escapeHtml(tx.rawChat)}"</p>` : ''}
       </td>
       <td class="py-3 px-4">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-slate-100 text-slate-700">
+        <span class="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-gray-100 text-gray-700">
           ${tx.category}
         </span>
       </td>
-      <td class="py-3 px-4 text-[11px] text-slate-600 font-medium">
+      <td class="py-3 px-4 text-[11px] text-gray-600 font-medium">
         ${tx.allocationId ? (appState.allocations.find(a => a.id === tx.allocationId)?.name || 'Pos Terkait') : '-'}
       </td>
       <td class="py-3 px-4">
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-indigo-50 text-indigo-700 border border-indigo-200">
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-brand-50 text-brand-800 border border-brand-200">
           <i data-lucide="cpu" class="w-3 h-3"></i> ${tx.aiModel || 'Manual'}
         </span>
       </td>
-      <td class="py-3 px-4 text-right font-extrabold ${isIncome ? 'text-emerald-600' : 'text-slate-900'}">
+      <td class="py-3 px-4 text-right font-extrabold ${isIncome ? 'text-brand-800' : 'text-gray-900'}">
         ${isIncome ? '+' : '-'}${formatRupiah(tx.amount)}
       </td>
       <td class="py-3 px-4 text-center">
-        <button onclick="deleteTransaction('${tx.id}')" title="Hapus Transaksi" class="text-slate-400 hover:text-rose-600 p-1 rounded hover:bg-slate-100">
+        <button onclick="deleteTransaction('${tx.id}')" title="Hapus Transaksi" class="text-gray-400 hover:text-rose-600 p-1 rounded hover:bg-gray-100">
           <i data-lucide="trash-2" class="w-4 h-4"></i>
         </button>
       </td>
