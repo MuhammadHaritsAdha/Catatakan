@@ -1,8 +1,7 @@
 // src/services/aiServices.js
 /**
- * Catatkan AI Service - Hugging Face Integration
- * Mendukung Hugging Face Serverless Inference API (Qwen, Llama, Mistral, DeepSeek)
- * Dilengkapi dengan Indonesian Student Fin-NLP Engine & Post-Validation Safeguard
+ * Catatkan AI Service
+ * Mendukung Gemini API + Indonesian Student Fin-NLP Engine & Post-Validation Safeguard
  */
 
 const DEFAULT_HF_MODEL = process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct';
@@ -32,17 +31,163 @@ const inferAmountIndonesian = (text) => {
     return Math.round(parseFloat(normalized));
   }
 
-  // 4. Plain numbers: "25000", "50000", "2000000"
+  // 4. Explicit Rp with numbers: "Rp 25000", "rp50000"
+  const rpNumberMatch = text.match(/rp\.?\s*(\d+)/i);
+  if (rpNumberMatch) {
+    return Number(rpNumberMatch[1]);
+  }
+
+  // 5. Plain numbers ONLY if >= 1000 (menghindari angka urutan seperti "ke 1", "jam 2", dsb)
   const plainMatches = clean.match(/\b\d+\b/g);
   if (plainMatches && plainMatches.length > 0) {
-    const numbers = plainMatches.map(Number).filter((n) => n > 100);
+    const numbers = plainMatches.map(Number).filter((n) => n >= 500);
     if (numbers.length > 0) {
       return numbers[numbers.length - 1];
     }
-    return Number(plainMatches[plainMatches.length - 1]);
   }
 
   return 0;
+};
+
+// Match allocation name from text
+const matchAllocationName = (rawStr) => {
+  if (!rawStr) return null;
+  const s = rawStr.toLowerCase();
+  if (s.match(/(kos|kost|kontrakan|tinggal|kamar|wifi|listrik|sewa)/)) return 'Tempat Tinggal';
+  if (s.match(/(makan|makanan|kantin|warteg|konsumsi|snack|jajan|minum|kuliner|food)/)) return 'Konsumsi';
+  if (s.match(/(kuliah|tugas|modul|print|cetak|fotokopi|buku|kampus|ukt|praktikum|skripsi)/)) return 'Tugas & Kuliah';
+  if (s.match(/(transport|bensin|pertalite|pertamax|ojol|grab|gojek|maxim|parkir|angkot|krl|busway)/)) return 'Transportasi';
+  if (s.match(/(lifestyle|nongkrong|ngopi|cafe|kafe|warkop|game|hiburan|nonton|bioskop|belanja|outfit)/)) return 'Lifestyle & Nongkrong';
+  if (s.match(/(tabungan|nabung|menabung|simpanan|celengan|darurat|rekening|invest)/)) return 'Tabungan Mahasiswa';
+  return null;
+};
+
+// Intent detection: check if query is out of scope, balance check, transfer, or transaction
+const detectChatIntent = (chatMessage) => {
+  const text = String(chatMessage || '').trim();
+  const lower = text.toLowerCase();
+
+  // 1. PEMINDAHAN SALDO (Prioritas pertama jika ada kata pindah/transfer/geser/alihkan)
+  const isTransferQuery = lower.match(/(pindah(?:in|kan)?|transfer|geser|alihkan)\s*(?:saldo|dana|uang)?/i);
+  if (isTransferQuery) {
+    const amount = inferAmountIndonesian(text);
+
+    // Parse source & destination allocation
+    let fromAllocation = null;
+    let toAllocation = null;
+
+    // Pola: "dari [asal] ... ke [tujuan]"
+    const dariMatch = lower.match(/dari\s+([a-zA-Z0-9\s&]+?)(?:\s+(?:ke|buat|untuk|sebesar|sejumlah|\d)|$)/i);
+    const keMatch = lower.match(/(?:ke|buat|untuk)\s+([a-zA-Z0-9\s&]+?)(?:\s+(?:dari|sebesar|sejumlah|\d)|$)/i);
+
+    if (dariMatch) {
+      fromAllocation = matchAllocationName(dariMatch[1]);
+    }
+    if (keMatch) {
+      toAllocation = matchAllocationName(keMatch[1]);
+    }
+
+    // Fallback: cari dari kata kunci jika ada nama alokasi eksplisit
+    if (!fromAllocation) {
+      if (lower.includes('tabungan')) fromAllocation = 'Tabungan Mahasiswa';
+      else if (lower.includes('lifestyle') || lower.includes('nongkrong')) fromAllocation = 'Lifestyle & Nongkrong';
+      else if (lower.includes('konsumsi') && !lower.includes('ke konsumsi') && !lower.includes('buat konsumsi')) fromAllocation = 'Konsumsi';
+      else if (lower.includes('kos') && !lower.includes('ke kos') && !lower.includes('buat kos')) fromAllocation = 'Tempat Tinggal';
+      else if (lower.includes('kuliah') && !lower.includes('ke kuliah') && !lower.includes('buat kuliah')) fromAllocation = 'Tugas & Kuliah';
+      else if (lower.includes('transport') && !lower.includes('ke transport') && !lower.includes('buat transport')) fromAllocation = 'Transportasi';
+    }
+
+    if (!toAllocation) {
+      if ((lower.includes('makan') || lower.includes('konsumsi')) && fromAllocation !== 'Konsumsi') toAllocation = 'Konsumsi';
+      else if ((lower.includes('tabungan') || lower.includes('nabung')) && fromAllocation !== 'Tabungan Mahasiswa') toAllocation = 'Tabungan Mahasiswa';
+      else if ((lower.includes('kos') || lower.includes('tinggal')) && fromAllocation !== 'Tempat Tinggal') toAllocation = 'Tempat Tinggal';
+      else if ((lower.includes('kuliah') || lower.includes('tugas') || lower.includes('modul')) && fromAllocation !== 'Tugas & Kuliah') toAllocation = 'Tugas & Kuliah';
+      else if ((lower.includes('transport') || lower.includes('bensin')) && fromAllocation !== 'Transportasi') toAllocation = 'Transportasi';
+      else if ((lower.includes('lifestyle') || lower.includes('nongkrong')) && fromAllocation !== 'Lifestyle & Nongkrong') toAllocation = 'Lifestyle & Nongkrong';
+    }
+
+    // Cek apakah instruksi transfer LENGKAP (ada nominal, asal, dan tujuan)
+    const isComplete = Boolean(amount > 0 && fromAllocation && toAllocation && fromAllocation !== toAllocation);
+
+    if (!isComplete) {
+      return {
+        action: 'transfer_prompt',
+        isFinancialQuery: true,
+        amount: amount || 0,
+        fromAllocation,
+        toAllocation,
+        rawText: text
+      };
+    }
+
+    return {
+      action: 'transfer',
+      isFinancialQuery: true,
+      amount: amount || 0,
+      fromAllocation,
+      toAllocation,
+      rawText: text
+    };
+  }
+
+  // 2. CEK SALDO (Balance Inquiry)
+  const isBalanceQuery = !lower.match(/(pindah|transfer|geser|alihkan)/) && (
+    lower.match(/(cek|lihat|liat|tengok|tampilkan|mau lihat|mau liat|berapa|info|intip)\s*(?:total\s*)?(saldo|duit|uang|tabungan|kantong|kas)/) ||
+    lower.match(/saldo\s*(?:saya|aku|gua|gw|ku|kamu|tersisa|sekarang|tinggal|ada berapa)/) ||
+    lower.match(/(sisa|total)\s*(?:saldo|uang|duit)/) ||
+    lower.match(/(uang|duit)\s*(?:saya|gua|gw|aku)\s*(?:tinggal|sisa|berapa)/) ||
+    lower === 'saldo' || lower === 'cek saldo' || lower === 'lihat saldo'
+  );
+
+  if (isBalanceQuery) {
+    return {
+      action: 'check_balance',
+      isFinancialQuery: true
+    };
+  }
+
+  // 3. CEK APAKAH PERTANYAAN DI LUAR KONTEKS KEUANGAN (Out of Scope)
+  const financialKeywords = [
+    // Income
+    'uang bulanan', 'bulanan', 'uang saku', 'jatah bulanan', 'kiriman', 'dikirimi', 'dikirim',
+    'gaji', 'ortu', 'orang tua', 'ayah', 'ibu', 'transfer masuk', 'terima', 'uang masuk', 'bayaran',
+    'pendapatan', 'saldo masuk', 'beasiswa', 'jual', 'freelance', 'proyek', 'tf masuk', 'ditransfer',
+    // Expense
+    'makan', 'beli', 'bayar', 'jajan', 'minum', 'kopi', 'warkop', 'kafe', 'cafe',
+    'transport', 'pulsa', 'kuota', 'sewa', 'kos', 'kosan', 'kost', 'kontrakan', 'belanja',
+    'nonton', 'bensin', 'pertalite', 'pertamax', 'ongkir', 'internet', 'wifi',
+    'listrik', 'konsumsi', 'modul', 'print', 'cetak', 'fotokopi', 'buku', 'ukt', 'spp',
+    'ojol', 'grab', 'gojek', 'maxim', 'indomaret', 'alfamart', 'warteg', 'padang',
+    'nabung', 'tabungan', 'investasi', 'topup', 'top up', 'checkout', 'porsi', 'bungkus'
+  ];
+
+  // Tambahkan kata kunci lifestyle, nongkrong, dll agar tidak out_of_scope
+  const lifestyleKeywords = [
+    'lifestyle', 'nongkrong', 'ngopi', 'warkop', 'cafe', 'kafe', 'bioskop',
+    'nonton', 'game', 'steam', 'topup', 'top up', 'netflix', 'spotify',
+    'skincare', 'baju', 'jalan', 'outfit', 'hiburan', 'parkir',
+    'angkot', 'krl', 'busway', 'kuota', 'internet'
+  ];
+
+  const hasFinancialKeyword = financialKeywords.some(kw => lower.includes(kw)) || lifestyleKeywords.some(kw => lower.includes(kw));
+  const detectedAmount = inferAmountIndonesian(text);
+  // Fix: regex sekarang mendeteksi "25rb", "50k", "1.5jt" (angka langsung menempel satuan)
+  const hasCurrencyIndicator = lower.match(/(?:rp\.?|\d+\s*(?:rb|k|ribu|jt|juta)|\b(?:rupiah)\b)/i);
+
+  // Jika TIDAK ADA kata kunci keuangan DAN nominal 0 atau tidak ada satuan mata uang:
+  if (!hasFinancialKeyword && (!hasCurrencyIndicator || detectedAmount <= 0)) {
+    return {
+      action: 'out_of_scope',
+      isFinancialQuery: false,
+      reply: `Halo! Saya adalah **Catatkan Bot**, asisten pencatat keuangan khusus mahasiswa. 🎓\n\nSaya mendeteksi pesan Anda berada di luar konteks pencatatan keuangan. Saya dapat membantu Anda untuk:\n- 📝 **Mencatat Transaksi** (contoh: *"Makan kantin 20rb"*, *"Uang bulanan dikirim 2jt"*)\n- 💰 **Cek Saldo Riil & Kantong** (contoh: *"Mau lihat saldo gua dong"*, *"Cek sisa uangku"*)\n- 🔄 **Pindah Saldo Antar Kantong** (contoh: *"Pindahin 50rb dari Tabungan ke buat makan"*)\n\nSilakan ketik transaksi atau perintah keuangan kamu ya!`
+    };
+  }
+
+  // 4. TRANSAKSI BIASA (Pemasukan / Pengeluaran)
+  return {
+    action: 'transaction',
+    isFinancialQuery: true
+  };
 };
 
 // Function to infer transaction type (income / expense)
@@ -104,7 +249,7 @@ const inferCategoryIndonesian = (text) => {
   }
 
   // Lifestyle & Nongkrong (Warkop, cafe, nongkrong, bioskop, game, outfit, skincare)
-  if (lower.match(/(nongkrong|warkop|cafe|kafe|kopi kenangan|janji jiwa|starbucks|cinema|bioskop|nonton|game|steam|topup|top up|netflix|spotify|skincare|baju|jalan)/)) {
+  if (lower.match(/(lifestyle|nongkrong|warkop|cafe|kafe|kopi kenangan|janji jiwa|starbucks|cinema|bioskop|nonton|game|steam|topup|top up|netflix|spotify|skincare|baju|jalan)/)) {
     return { category: 'Lifestyle', allocation: 'Lifestyle & Nongkrong' };
   }
 
@@ -169,9 +314,9 @@ const buildIndonesianNlpFallback = (chatMessage, customModelName = DEFAULT_HF_MO
     category,
     targetAllocation: allocation,
     date: new Date().toISOString(),
-    aiProvider: 'Hugging Face (Inference Engine)',
-    model: customModelName,
-    inferenceMode: 'Hugging Face Fin-NLP Local Resolver',
+    aiProvider: 'Catatkan AI',
+    model: 'Catatkan Engine',
+    inferenceMode: 'Pencatatan Otomatis',
     confidence: 0.98,
     note: 'Diproses dengan mesin NLP Bahasa Indonesia untuk keuangan mahasiswa.'
   };
@@ -179,10 +324,88 @@ const buildIndonesianNlpFallback = (chatMessage, customModelName = DEFAULT_HF_MO
   return applyValidationSafeguard(result, cleanText);
 };
 
-// Call Hugging Face Serverless Inference API
+// Call Gemini API sebagai AI Engine utama
+const callGeminiApi = async (chatMessage) => {
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey || !apiKey.trim()) {
+    return null; // Tidak ada key, skip ke fallback
+  }
+
+  const systemPrompt = `Anda adalah sistem AI Pencatat Keuangan Mahasiswa Indonesia ("Catatkan").
+Tugas Anda adalah mengekstrak data keuangan dari kalimat santai mahasiswa secara akurat.
+Balas HANYA dengan 1 objek JSON murni tanpa markdown, tanpa teks pengantar, dan tanpa penutup.
+Format JSON:
+{
+  "description": "Deskripsi transaksi singkat dan jelas",
+  "amount": 20000,
+  "type": "expense" atau "income",
+  "category": "Konsumsi" | "Tempat Tinggal" | "Kuliah" | "Transportasi" | "Lifestyle" | "Tabungan" | "Uang Saku / Gaji" | "Lainnya",
+  "targetAllocation": "Konsumsi" | "Tempat Tinggal" | "Tugas & Kuliah" | "Transportasi" | "Lifestyle & Nongkrong" | "Tabungan Mahasiswa"
+}
+
+ATURAN PENTING:
+- "Uang bulanan", "uang saku", "dikirimi uang", "gaji", "beasiswa", "transferan ortu" ADALAH type: "income", category: "Uang Saku / Gaji", targetAllocation: "Tabungan Mahasiswa".
+- "Makan", "jajan", "kantin", "warteg" ADALAH type: "expense", category: "Konsumsi", targetAllocation: "Konsumsi".
+- "Beli modul", "cetak", "fotokopi", "buku" ADALAH type: "expense", category: "Kuliah", targetAllocation: "Tugas & Kuliah".
+- "Bayar kos", "kontrakan" ADALAH type: "expense", category: "Tempat Tinggal", targetAllocation: "Tempat Tinggal".
+- "Nongkrong", "warkop", "cafe", "bioskop", "game", "lifestyle" ADALAH type: "expense", category: "Lifestyle", targetAllocation: "Lifestyle & Nongkrong".
+- Angka "25rb" = 25000, "50k" = 50000, "1.5jt" = 1500000.`;
+
+  const userPrompt = `Ekstrak kalimat transaksi ini ke JSON: "${chatMessage}"`;
+
+  try {
+    const { GoogleGenAI } = require('@google/genai');
+    const genAI = new GoogleGenAI({ apiKey });
+
+    const result = await genAI.models.generateContent({
+      model: 'gemini-2.0-flash',
+      contents: `${systemPrompt}\n\n${userPrompt}`,
+      config: {
+        temperature: 0.1,
+        maxOutputTokens: 300,
+      }
+    });
+
+    const content = result.text;
+    if (content) {
+      let cleaned = content.replace(/```json/gi, '').replace(/```/g, '').trim();
+      const start = cleaned.indexOf('{');
+      const end = cleaned.lastIndexOf('}');
+      if (start !== -1 && end !== -1 && end > start) {
+        cleaned = cleaned.slice(start, end + 1);
+      }
+      const parsed = JSON.parse(cleaned);
+      const resObj = {
+        description: parsed.description || cleanDescription(chatMessage),
+        amount: Number(parsed.amount) || inferAmountIndonesian(chatMessage),
+        type: parsed.type === 'income' ? 'income' : 'expense',
+        category: parsed.category || inferCategoryIndonesian(chatMessage).category,
+        targetAllocation: parsed.targetAllocation || inferCategoryIndonesian(chatMessage).allocation,
+        date: new Date().toISOString(),
+        aiProvider: 'Catatkan AI',
+        model: 'Gemini',
+        inferenceMode: 'Pencatatan Otomatis',
+        confidence: 0.99,
+        rawResponse: content
+      };
+      return applyValidationSafeguard(resObj, chatMessage);
+    }
+  } catch (err) {
+    console.warn(`Gemini API error: ${err.message}. Falling back to local NLP...`);
+  }
+
+  return null; // Gagal, lanjut ke fallback
+};
+
+// Call Hugging Face Serverless Inference API (atau langsung Local Fin-NLP jika token kosong)
 const callHuggingFaceApi = async (chatMessage, options = {}) => {
   const hfToken = options.hfToken || process.env.HF_TOKEN || process.env.HUGGINGFACE_API_KEY;
   const model = options.model || process.env.HF_MODEL || DEFAULT_HF_MODEL;
+
+  // Jika token Hugging Face tidak diisi, langsung gunakan Local NLP Engine agar instan tanpa lag dan tanpa error koneksi
+  if (!hfToken || !hfToken.trim()) {
+    return buildIndonesianNlpFallback(chatMessage, model);
+  }
 
   const systemPrompt = `Anda adalah sistem AI Pencatat Keuangan Mahasiswa Indonesia ("Catatkan").
 Tugas Anda adalah mengekstrak data keuangan dari kalimat santai mahasiswa secara akurat.
@@ -267,9 +490,9 @@ Output: {"description":"Pembayaran kosan bulanan","amount":650000,"type":"expens
           category: parsed.category || inferCategoryIndonesian(chatMessage).category,
           targetAllocation: parsed.targetAllocation || inferCategoryIndonesian(chatMessage).allocation,
           date: new Date().toISOString(),
-          aiProvider: 'Hugging Face',
-          model: model,
-          inferenceMode: 'Hugging Face Router (Chat Completions)',
+          aiProvider: 'Catatkan AI',
+          model: 'Catatkan Engine',
+          inferenceMode: 'Pencatatan Otomatis',
           confidence: 0.98,
           rawResponse: content
         };
@@ -326,9 +549,9 @@ Output: {"description":"Pembayaran kosan bulanan","amount":650000,"type":"expens
           category: parsed.category || inferCategoryIndonesian(chatMessage).category,
           targetAllocation: parsed.targetAllocation || inferCategoryIndonesian(chatMessage).allocation,
           date: new Date().toISOString(),
-          aiProvider: 'Hugging Face',
-          model: model,
-          inferenceMode: 'Hugging Face Serverless Inference API',
+          aiProvider: 'Catatkan AI',
+          model: 'Catatkan Engine',
+          inferenceMode: 'Pencatatan Otomatis',
           confidence: 0.96,
           rawResponse: textOut
         };
@@ -344,7 +567,7 @@ Output: {"description":"Pembayaran kosan bulanan","amount":650000,"type":"expens
 };
 
 /**
- * Main parser entrypoint
+ * Main parser entrypoint with intent handling
  */
 const parseChatToTransaction = async (chatMessage, options = {}) => {
   const text = String(chatMessage || '').trim();
@@ -352,11 +575,55 @@ const parseChatToTransaction = async (chatMessage, options = {}) => {
     throw new Error('Pesan chat tidak boleh kosong');
   }
 
-  return await callHuggingFaceApi(text, options);
+  // 1. Cek intent percakapan terlebih dahulu
+  const intent = detectChatIntent(text);
+  if (intent.action === 'out_of_scope') {
+    return {
+      action: 'out_of_scope',
+      reply: intent.reply
+    };
+  }
+  if (intent.action === 'check_balance') {
+    return {
+      action: 'check_balance'
+    };
+  }
+  if (intent.action === 'transfer_prompt') {
+    return {
+      action: 'transfer_prompt',
+      amount: intent.amount,
+      fromAllocation: intent.fromAllocation,
+      toAllocation: intent.toAllocation,
+      rawText: text
+    };
+  }
+  if (intent.action === 'transfer') {
+    return {
+      action: 'transfer',
+      amount: intent.amount,
+      fromAllocation: intent.fromAllocation,
+      toAllocation: intent.toAllocation,
+      rawText: text
+    };
+  }
+
+  // 2. Transaksi normal (pemasukan / pengeluaran)
+  // Prioritas: Gemini API → HuggingFace API → Local NLP Fallback
+  let txData = await callGeminiApi(text);
+  if (!txData) {
+    txData = await callHuggingFaceApi(text, options);
+  }
+  return {
+    action: 'transaction',
+    ...txData
+  };
 };
 
 module.exports = {
   parseChatToTransaction,
   buildIndonesianNlpFallback,
+  detectChatIntent,
+  matchAllocationName,
+  callGeminiApi,
   DEFAULT_HF_MODEL,
 };

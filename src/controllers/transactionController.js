@@ -20,19 +20,102 @@ const handleChatTransaction = async (req, res) => {
       model: model || req.headers['x-hf-model']
     });
 
+    const formatRp = (num) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(num || 0);
+
+    // 1. Tangani Out of Scope (Pertanyaan di luar konteks keuangan)
+    if (parsedData.action === 'out_of_scope') {
+      return res.status(200).json({
+        success: true,
+        action: 'out_of_scope',
+        data: {
+          reply: parsedData.reply
+        }
+      });
+    }
+
+    // 2. Tangani Cek Saldo Langsung Lewat Chat
+    if (parsedData.action === 'check_balance') {
+      const allocations = await dataStore.getAllocations();
+      const totalBalance = allocations.reduce((acc, curr) => acc + Number(curr.balance), 0);
+      const breakdownLines = allocations.map(a => `- ${a.icon || '📦'} **${a.name}:** ${formatRp(a.balance)}`).join('\n');
+      const reply = `💰 **Informasi Saldo Kamu Saat Ini:**\n\n**Total Saldo Riil:** **${formatRp(totalBalance)}**\n\n📊 **Rincian per Pos Alokasi:**\n${breakdownLines}\n\n💡 *Tips: Kamu bisa memindahkan saldo antar kantong langsung lewat chat ini (contoh: "Pindahin 50rb dari Tabungan ke Konsumsi").*`;
+
+      return res.status(200).json({
+        success: true,
+        action: 'check_balance',
+        data: {
+          totalBalance,
+          allocations,
+          reply
+        }
+      });
+    }
+
+    // 3. Tangani Permintaan Pindah Saldo yang Belum Lengkap (Tanya mau pindahin ke mana / berapa)
+    if (parsedData.action === 'transfer_prompt') {
+      const allocations = await dataStore.getAllocations();
+      const pocketList = allocations.map(a => `- ${a.icon || '📦'} **${a.name}** (Tersedia: ${formatRp(a.balance)})`).join('\n');
+
+      let reply = '';
+      if (parsedData.amount > 0 && parsedData.fromAllocation) {
+        reply = `Boleh! Kamu mau pindahin dana sebesar **${formatRp(parsedData.amount)}** dari pos **${parsedData.fromAllocation}** ke pos mana nih? 🤔\n\n**Pilihan pos alokasi tujuan:**\n${pocketList}\n\n*Contoh: "ke Konsumsi"*`;
+      } else if (parsedData.amount > 0) {
+        reply = `Boleh! Nominal **${formatRp(parsedData.amount)}** mau dipindahkan dari pos apa ke pos apa nih? 🤔\n\n**Pos yang tersedia saat ini:**\n${pocketList}\n\n*Contoh: "dari Tabungan ke Konsumsi"*`;
+      } else {
+        reply = `Boleh banget! Mau pindahin saldo berapa dan dari kantong mana ke kantong mana nih? 😊\n\n**Pos alokasi yang tersedia saat ini:**\n${pocketList}\n\n💡 *Contoh kamu bisa ketik langsung:*\n- *"Pindahin 50rb dari Tabungan ke Konsumsi"*\n- *"Transfer 100k dari Konsumsi ke Tempat Tinggal"*\n- *"Geser 20rb dari Tabungan ke Transportasi"*`;
+      }
+
+      return res.status(200).json({
+        success: true,
+        action: 'transfer_prompt',
+        data: {
+          reply
+        }
+      });
+    }
+
+    // 4. Tangani Pemindahan Saldo Lengkap (Transfer Antar Kantong)
+    if (parsedData.action === 'transfer') {
+      const allocations = await dataStore.getAllocations();
+      const fromAlloc = allocations.find(a => a.name.toLowerCase() === (parsedData.fromAllocation || '').toLowerCase()) ||
+                        allocations.find(a => a.name.toLowerCase().includes('tabungan')) ||
+                        allocations[0];
+      const toAlloc = allocations.find(a => a.name.toLowerCase() === (parsedData.toAllocation || '').toLowerCase()) ||
+                      allocations.find(a => a.name.toLowerCase().includes('konsumsi')) ||
+                      allocations[1] || allocations[0];
+
+      const amount = Number(parsedData.amount) || 0;
+      const reply = `🔄 Siap! Saya mendeteksi permintaan **Pemindahan Saldo** sebesar **${formatRp(amount)}** dari pos **${fromAlloc.name}** ke pos **${toAlloc.name}**.\n\nKlik tombol di bawah atau di panel pratinjau untuk mengeksekusi pemindahan saldo ini.`;
+
+      return res.status(200).json({
+        success: true,
+        action: 'transfer',
+        data: {
+          amount,
+          fromAllocation: fromAlloc.name,
+          toAllocation: toAlloc.name,
+          fromAllocationId: fromAlloc.id,
+          toAllocationId: toAlloc.id,
+          reply
+        }
+      });
+    }
+
+    // 4. Tangani Transaksi Biasa (Income / Expense)
     let savedTransaction = null;
     if (autoSave) {
       savedTransaction = await dataStore.addTransaction({
         ...parsedData,
         rawChat: chatMessage,
         aiParsed: true,
-        aiModel: parsedData.model || 'Hugging Face'
+        aiModel: 'Asisten AI'
       });
     }
 
     return res.status(200).json({
       success: true,
-      message: 'Chat berhasil diproses oleh AI Hugging Face!',
+      action: 'transaction',
+      message: 'Chat berhasil diproses oleh Asisten AI!',
       data: parsedData,
       savedTransaction,
     });
@@ -40,7 +123,7 @@ const handleChatTransaction = async (req, res) => {
     console.error('Error handling chat:', error);
     return res.status(500).json({
       success: false,
-      message: error.message || 'Terjadi kesalahan pada server AI Hugging Face.',
+      message: error.message || 'Terjadi kesalahan pada server AI.',
     });
   }
 };

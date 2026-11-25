@@ -132,10 +132,36 @@ const distributeLumpSum = async (req, res) => {
   }
 };
 
+// DELETE /api/allocations/:id
+const deleteAllocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const deleted = await dataStore.deleteAllocation(id);
+    if (!deleted) {
+      return res.status(404).json({
+        success: false,
+        message: 'Pos alokasi tidak ditemukan',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'Pos alokasi berhasil dihapus',
+    });
+  } catch (error) {
+    console.error('Error deleting allocation:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Gagal menghapus pos alokasi',
+    });
+  }
+};
+
 module.exports = {
   getAllocations,
   createAllocation,
   updateAllocation,
+  deleteAllocation,
   transferBetweenAllocations,
   distributeLumpSum,
 };

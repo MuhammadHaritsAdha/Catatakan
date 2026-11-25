@@ -288,7 +288,7 @@
                     </div>
                     <div>
                       <p class="text-xs font-bold text-gray-900">Asisten Keuangan Catatkan</p>
-                      <p class="text-[10px] text-gray-500">Model: Qwen2.5 / NLP Engine</p>
+                      <p class="text-[10px] text-emerald-600 font-medium">● Siap Mencatat Otomatis</p>
                     </div>
                   </div>
                   <button onclick="resetChatHistory()" title="Reset Percakapan" class="text-gray-400 hover:text-gray-600 p-1 rounded-lg">
@@ -370,7 +370,7 @@
                   <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                     <div>
                       <h3 class="text-sm font-bold text-gray-900">Pratinjau Catatan Transaksi</h3>
-                      <p id="previewModelName" class="text-[10px] text-gray-400 font-mono">Qwen/Qwen2.5-7B-Instruct</p>
+                      <p id="previewModelName" class="text-[10px] text-gray-400">Pencatatan Otomatis</p>
                     </div>
                     <span id="aiInferenceBadge" class="text-[11px] font-semibold px-2.5 py-1 rounded-full bg-amber-100 text-amber-800">
                       Perlu Konfirmasi
@@ -618,7 +618,7 @@
                       <th class="py-3 px-4">Deskripsi Transaksi</th>
                       <th class="py-3 px-4">Kategori</th>
                       <th class="py-3 px-4">Pos Alokasi</th>
-                      <th class="py-3 px-4">Model AI</th>
+                      <th class="py-3 px-4">Metode</th>
                       <th class="py-3 px-4 text-right">Nominal</th>
                       <th class="py-3 px-4 text-center">Aksi</th>
                     </tr>
@@ -637,15 +637,37 @@
           <!-- ========================================== -->
           <div id="reports-view" class="tab-content hidden space-y-6">
             
-            <!-- Page Header -->
-            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <!-- Page Header & Filter Rentang Tanggal -->
+            <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-gray-200 shadow-sm">
               <div>
-                <h2 class="text-2xl font-bold text-gray-900">Laporan keuangan</h2>
-                <p class="text-sm text-gray-500 mt-0.5">Ringkasan arus kas dan alokasi pengeluaran</p>
+                <h2 class="text-xl sm:text-2xl font-bold text-gray-900 flex items-center gap-2">
+                  <i data-lucide="pie-chart" class="w-6 h-6 text-brand-800"></i>
+                  Laporan keuangan
+                </h2>
+                <p id="reportPeriodBadge" class="text-xs sm:text-sm text-gray-500 mt-0.5 font-medium">Ringkasan arus kas dan alokasi pengeluaran</p>
               </div>
-              <select id="reportMonthSelect" onchange="loadMonthlyReport()" class="px-3.5 py-2 border border-gray-200 rounded-xl text-xs bg-white outline-none focus:border-brand-600 font-medium">
-                <!-- Populated via JS -->
-              </select>
+
+              <!-- Date Range Controls -->
+              <div class="flex flex-wrap items-center gap-2">
+                <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
+                  <span class="text-[11px] font-semibold text-gray-500">Dari:</span>
+                  <input type="date" id="reportStartDate" class="text-xs bg-transparent border-0 outline-none font-medium text-gray-700">
+                </div>
+                <div class="flex items-center gap-1.5 bg-gray-50 border border-gray-200 px-3 py-1.5 rounded-xl">
+                  <span class="text-[11px] font-semibold text-gray-500">Sampai:</span>
+                  <input type="date" id="reportEndDate" class="text-xs bg-transparent border-0 outline-none font-medium text-gray-700">
+                </div>
+                <button onclick="applyReportDateFilter()" class="bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold px-3 py-2 rounded-xl transition flex items-center gap-1 shadow-sm">
+                  <i data-lucide="filter" class="w-3.5 h-3.5"></i>
+                  Terapkan
+                </button>
+                <button onclick="resetReportDateFilter()" title="Reset ke Bulan Ini" class="border border-gray-200 hover:bg-gray-100 text-gray-600 text-xs font-medium px-2.5 py-2 rounded-xl transition">
+                  Bulan Ini
+                </button>
+                <select id="reportMonthSelect" onchange="loadMonthlyReport()" class="hidden">
+                  <!-- Kept hidden for compatibility -->
+                </select>
+              </div>
             </div>
 
             <!-- Top Summary Metric Cards -->
@@ -844,44 +866,6 @@
                 <p class="text-[11px] text-gray-400 pt-1">Data hanya untuk akunmu.</p>
               </div>
 
-            </div>
-
-            <!-- Model Hugging Face Settings -->
-            <div class="bg-white border border-gray-200 rounded-2xl p-5 space-y-4 shadow-sm">
-              <div class="flex items-center justify-between">
-                <div>
-                  <h3 class="text-sm font-bold text-gray-900">Konfigurasi Model AI Hugging Face</h3>
-                  <p class="text-xs text-gray-500 mt-0.5">Pilih model inference atau gunakan local engine bawaan</p>
-                </div>
-                <span class="text-[10px] bg-brand-50 text-brand-800 border border-brand-200 px-2 py-0.5 rounded-full font-mono">
-                  Online Router
-                </span>
-              </div>
-
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label class="block text-xs font-medium text-gray-700 mb-1.5">Model AI:</label>
-                  <select id="hfModelSelect" class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs bg-white outline-none focus:border-brand-600">
-                    <option value="Qwen/Qwen2.5-7B-Instruct">Qwen/Qwen2.5-7B-Instruct (Rekomendasi)</option>
-                    <option value="meta-llama/Llama-3.2-3B-Instruct">meta-llama/Llama-3.2-3B-Instruct</option>
-                    <option value="mistralai/Mistral-7B-Instruct-v0.3">mistralai/Mistral-7B-Instruct-v0.3</option>
-                    <option value="deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B">deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B</option>
-                  </select>
-                </div>
-                <div>
-                  <label class="block text-xs font-medium text-gray-700 mb-1.5">Hugging Face User Access Token (Opsional):</label>
-                  <input 
-                    type="password" 
-                    id="hfTokenInput" 
-                    placeholder="hf_xxxxxxxxxxxxxxxxxxxx" 
-                    class="w-full px-3 py-2 border border-gray-200 rounded-xl text-xs outline-none focus:border-brand-600 font-mono"
-                  />
-                </div>
-              </div>
-
-              <button onclick="saveHfSettings()" class="px-4 py-2 bg-brand-800 hover:bg-brand-900 text-white text-xs font-semibold rounded-xl shadow-sm transition">
-                Simpan Konfigurasi AI
-              </button>
             </div>
 
             <!-- Tim Pengembang PRD (Manpro) -->
@@ -1180,6 +1164,75 @@
         <button onclick="submitNewAllocation()" class="bg-brand-800 hover:bg-brand-900 text-white font-semibold px-4 py-2 rounded-xl text-xs">
           Simpan pos
         </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4.1. MODAL EDIT / HAPUS POS KANTONG ALOKASI -->
+  <div id="modalEditAllocation" class="modal-backdrop hidden">
+    <div class="modal-content max-w-sm p-6 space-y-4">
+      <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+        <h3 class="text-sm font-bold text-gray-900 flex items-center gap-1.5">
+          <i data-lucide="edit-3" class="w-4 h-4 text-brand-800"></i>
+          Ubah Pos Alokasi
+        </h3>
+        <button onclick="closeEditAllocationModal()" class="text-gray-400 hover:text-gray-600 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+      </div>
+
+      <input type="hidden" id="editAllocId" />
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-semibold text-gray-700 mb-1">Nama pos:</label>
+          <input 
+            type="text" 
+            id="editAllocName" 
+            class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-600"
+          />
+        </div>
+
+        <div>
+          <label class="block font-semibold text-gray-700 mb-1">Target alokasi bulanan (Rp):</label>
+          <input 
+            type="number" 
+            id="editAllocTarget" 
+            class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 outline-none focus:border-brand-600"
+          />
+        </div>
+
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block font-semibold text-gray-700 mb-1">Emoji Icon:</label>
+            <input 
+              type="text" 
+              id="editAllocIcon" 
+              class="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-center text-sm outline-none"
+            />
+          </div>
+          <div>
+            <label class="block font-semibold text-gray-700 mb-1">Warna Label:</label>
+            <input 
+              type="color" 
+              id="editAllocColor" 
+              class="w-full h-9 rounded-xl border border-gray-200 cursor-pointer p-0.5 bg-gray-50"
+            />
+          </div>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-between pt-3 border-t border-gray-100">
+        <button onclick="confirmDeleteCurrentAllocation()" class="px-3 py-1.5 text-xs text-rose-600 hover:bg-rose-50 rounded-xl font-medium flex items-center gap-1 transition">
+          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+          Hapus Pos
+        </button>
+        <div class="flex items-center gap-2">
+          <button onclick="closeEditAllocationModal()" class="px-3 py-1.5 text-xs text-gray-600 font-medium hover:bg-gray-100 rounded-xl">Batal</button>
+          <button onclick="submitEditAllocation()" class="bg-brand-800 hover:bg-brand-900 text-white font-semibold px-4 py-2 rounded-xl text-xs">
+            Simpan Perubahan
+          </button>
+        </div>
       </div>
     </div>
   </div>

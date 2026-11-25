@@ -1,7 +1,7 @@
 // public/app.js
 /**
  * Catatkan - Frontend Application Logic
- * Integrasi Hugging Face AI, Pos Alokasi Dana, dan Laporan Bulanan
+ * Integrasi AI Pencatat Keuangan, Pos Alokasi Dana, dan Laporan Bulanan
  */
 
 // State Management
@@ -216,7 +216,7 @@ async function updateOverviewStats() {
 }
 
 // ==========================================
-// TAB 1: CHAT AI WORKFLOW (HUGGING FACE)
+// TAB 1: CHAT AI WORKFLOW
 // ==========================================
 
 function sendPredefinedMessage(text) {
@@ -270,7 +270,7 @@ async function handleChatSubmit(e) {
   const badge = document.getElementById('aiInferenceBadge');
   if (badge) {
     badge.className = 'text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded font-mono flex items-center gap-1';
-    badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Mengurai teks dengan Hugging Face...`;
+    badge.innerHTML = `<span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Memproses pesan...`;
   }
 
   try {
@@ -293,6 +293,52 @@ async function handleChatSubmit(e) {
 
     if (json.success && json.data) {
       const parsed = json.data;
+      const action = json.action || 'transaction';
+
+      // 1. Tangani Pesan di Luar Konteks Keuangan
+      if (action === 'out_of_scope') {
+        resetChatPreviewCard();
+        appendChatMessage('bot', parsed.reply || 'Halo! Saya adalah asisten pencatat keuangan mahasiswa.');
+        return;
+      }
+
+      // 2. Tangani Permintaan Cek Saldo Langsung
+      if (action === 'check_balance') {
+        resetChatPreviewCard();
+        appendChatMessage('bot', parsed.reply);
+        updateOverviewStats();
+        return;
+      }
+
+      // 3. Tangani Permintaan Pindah Saldo yang Belum Lengkap (Tanya tujuan & nominal)
+      if (action === 'transfer_prompt') {
+        resetChatPreviewCard();
+        appendChatMessage('bot', parsed.reply);
+        return;
+      }
+
+      // 4. Tangani Pemindahan Saldo (Transfer Antar Kantong)
+      if (action === 'transfer') {
+        appState.activeParsedTx = {
+          ...parsed,
+          type: 'transfer',
+          rawChat: chatMessage
+        };
+
+        renderParsedPreview(appState.activeParsedTx);
+
+        appendChatMessage('bot', parsed.reply, {
+          type: 'transfer',
+          amount: parsed.amount,
+          fromAllocation: parsed.fromAllocation,
+          toAllocation: parsed.toAllocation,
+          fromAllocationId: parsed.fromAllocationId,
+          toAllocationId: parsed.toAllocationId
+        });
+        return;
+      }
+
+      // 4. Tangani Catatan Transaksi (Income / Expense)
       appState.activeParsedTx = { ...parsed, rawChat: chatMessage };
 
       // Update right-hand preview card
@@ -309,7 +355,7 @@ async function handleChatSubmit(e) {
   } catch (err) {
     console.error('Error sending chat:', err);
     removeTypingIndicator(typingIndicatorId);
-    appendChatMessage('bot', 'Terjadi kesalahan koneksi ke server AI Hugging Face.');
+    appendChatMessage('bot', 'Terjadi kesalahan koneksi ke server AI.');
   }
 }
 
@@ -332,14 +378,26 @@ function appendChatMessage(sender, text, parsedData = null) {
   } else {
     let actionBtnHtml = '';
     if (parsedData) {
-      actionBtnHtml = `
-        <div class="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
-          <span class="text-[11px] font-semibold text-indigo-700">${parsedData.category} &bull; ${formatRupiah(parsedData.amount)}</span>
-          <button onclick="confirmSaveParsedTransaction()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg font-medium shadow-sm transition">
-            Simpan Transaksi &rarr;
-          </button>
-        </div>
-      `;
+      if (parsedData.type === 'transfer') {
+        actionBtnHtml = `
+          <div class="mt-2.5 pt-2 border-t border-slate-200/80 flex flex-wrap items-center justify-between gap-2">
+            <span class="text-[11px] font-semibold text-brand-800">Transfer &bull; ${formatRupiah(parsedData.amount)} (${parsedData.fromAllocation} &rarr; ${parsedData.toAllocation})</span>
+            <button onclick="confirmAiTransfer('${parsedData.fromAllocationId}', '${parsedData.toAllocationId}', ${parsedData.amount})" class="text-xs bg-brand-800 hover:bg-brand-900 text-white px-3 py-1.5 rounded-lg font-medium shadow-sm transition flex items-center gap-1.5">
+              <i data-lucide="arrow-left-right" class="w-3.5 h-3.5"></i>
+              Konfirmasi Pindah Saldo &rarr;
+            </button>
+          </div>
+        `;
+      } else {
+        actionBtnHtml = `
+          <div class="mt-2.5 pt-2 border-t border-slate-200/80 flex items-center justify-between gap-2">
+            <span class="text-[11px] font-semibold text-indigo-700">${parsedData.category} &bull; ${formatRupiah(parsedData.amount)}</span>
+            <button onclick="confirmSaveParsedTransaction()" class="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded-lg font-medium shadow-sm transition">
+              Simpan Transaksi &rarr;
+            </button>
+          </div>
+        `;
+      }
     }
 
     msgDiv.innerHTML = `
@@ -374,7 +432,7 @@ function appendTypingIndicator() {
       <span class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce"></span>
       <span class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0.15s"></span>
       <span class="w-2 h-2 rounded-full bg-indigo-500 animate-bounce" style="animation-delay: 0.3s"></span>
-      <span class="ml-1 font-mono text-[11px]">Hugging Face sedang memproses...</span>
+      <span class="ml-1 text-[11px] text-gray-500">Sedang memproses catatan...</span>
     </div>
   `;
   container.appendChild(typingDiv);
@@ -389,19 +447,41 @@ function removeTypingIndicator(id) {
   if (el) el.remove();
 }
 
+function resetChatPreviewCard() {
+  const emptyCard = document.getElementById('aiEmptyCard');
+  const resultCard = document.getElementById('aiResultCard');
+  if (emptyCard) emptyCard.classList.remove('hidden');
+  if (resultCard) resultCard.classList.add('hidden');
+
+  const badge = document.getElementById('aiInferenceBadge');
+  if (badge) {
+    badge.className = 'text-[11px] font-semibold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600';
+    badge.textContent = 'Menunggu input...';
+  }
+  appState.activeParsedTx = null;
+}
+
 function renderParsedPreview(parsed) {
   document.getElementById('aiEmptyCard').classList.add('hidden');
   document.getElementById('aiResultCard').classList.remove('hidden');
 
   const badge = document.getElementById('aiInferenceBadge');
   if (badge) {
-    badge.className = 'text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono';
-    badge.textContent = parsed.inferenceMode || 'Hugging Face AI';
+    if (parsed.type === 'transfer') {
+      badge.className = 'text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded font-mono';
+      badge.textContent = 'Pemindahan Saldo';
+    } else {
+      badge.className = 'text-[10px] bg-emerald-100 text-emerald-800 px-2 py-0.5 rounded font-mono';
+      badge.textContent = 'Pencatatan Otomatis';
+    }
   }
 
   const typeBadge = document.getElementById('previewTypeBadge');
   if (typeBadge) {
-    if (parsed.type === 'income') {
+    if (parsed.type === 'transfer') {
+      typeBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800';
+      typeBadge.textContent = 'Pindah Saldo';
+    } else if (parsed.type === 'income') {
       typeBadge.className = 'text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700';
       typeBadge.textContent = 'Pemasukan';
     } else {
@@ -414,16 +494,83 @@ function renderParsedPreview(parsed) {
   if (amtEl) amtEl.textContent = formatRupiah(parsed.amount);
 
   const descEl = document.getElementById('previewDescription');
-  if (descEl) descEl.textContent = parsed.description;
+  if (descEl) {
+    descEl.textContent = parsed.type === 'transfer' ? `Transfer: ${parsed.fromAllocation} -> ${parsed.toAllocation}` : (parsed.description || '-');
+  }
 
   const catEl = document.getElementById('previewCategory');
-  if (catEl) catEl.textContent = parsed.category;
+  if (catEl) {
+    catEl.textContent = parsed.type === 'transfer' ? `Dari: ${parsed.fromAllocation}` : (parsed.category || '-');
+  }
 
   const allocEl = document.getElementById('previewAllocation');
-  if (allocEl) allocEl.textContent = parsed.targetAllocation || 'Umum';
+  if (allocEl) {
+    allocEl.textContent = parsed.type === 'transfer' ? `Ke: ${parsed.toAllocation}` : (parsed.targetAllocation || 'Umum');
+  }
 
   const modelEl = document.getElementById('previewModelName');
-  if (modelEl) modelEl.textContent = parsed.model || appState.hfSettings.model;
+  if (modelEl) modelEl.textContent = 'Pencatatan Otomatis';
+
+  const saveBtn = document.getElementById('btnSaveParsedTx');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    if (parsed.type === 'transfer') {
+      saveBtn.onclick = () => confirmAiTransfer(parsed.fromAllocationId, parsed.toAllocationId, parsed.amount);
+      saveBtn.innerHTML = `<i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Eksekusi Pemindahan Saldo</span>`;
+    } else {
+      saveBtn.onclick = confirmSaveParsedTransaction;
+      saveBtn.innerHTML = `<i data-lucide="check" class="w-4 h-4"></i><span>Konfirmasi & Simpan</span>`;
+    }
+  }
+  lucide.createIcons();
+}
+
+async function confirmAiTransfer(fromId, toId, amount) {
+  if (!fromId || !toId || !amount) {
+    showToast('Parameter transfer tidak valid', 'error');
+    return;
+  }
+
+  const saveBtn = document.getElementById('btnSaveParsedTx');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = `<span class="animate-spin mr-1">⌛</span> Memindahkan...`;
+  }
+
+  try {
+    const res = await fetch('/api/allocations/transfer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fromId,
+        toId,
+        amount,
+        reason: 'Pemindahan saldo via Chat AI'
+      })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      showToast(json.message, 'success');
+      appendChatMessage('bot', `✅ **Pemindahan Saldo Berhasil!**\nSaldo sebesar **${formatRupiah(amount)}** telah berhasil dipindahkan.`);
+      resetChatPreviewCard();
+      await Promise.all([
+        fetchAllocations(),
+        loadMonthlyReport()
+      ]);
+      await updateOverviewStats();
+    } else {
+      showToast(json.message || 'Gagal memindahkan saldo', 'error');
+      appendChatMessage('bot', `⚠️ Gagal memindahkan saldo: ${json.message}`);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `<i data-lucide="arrow-left-right" class="w-4 h-4"></i><span>Coba Lagi</span>`;
+      }
+    }
+  } catch (err) {
+    console.error('Error in confirmAiTransfer:', err);
+    showToast('Terjadi kesalahan koneksi saat memindahkan saldo', 'error');
+  }
 }
 
 async function confirmSaveParsedTransaction() {
@@ -519,9 +666,14 @@ function renderAllocationsUI() {
               <p class="text-[11px] text-gray-400 line-clamp-1">${alloc.description || ''}</p>
             </div>
           </div>
-          <button onclick="quickTransferFrom('${alloc.id}')" class="text-xs font-semibold text-brand-800 hover:underline inline-flex items-center gap-0.5">
-            Ubah →
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button onclick="quickTransferFrom('${alloc.id}')" title="Pindah saldo dari pos ini" class="p-1.5 text-gray-400 hover:text-brand-800 rounded-lg hover:bg-gray-50 transition">
+              <i data-lucide="arrow-left-right" class="w-4 h-4"></i>
+            </button>
+            <button onclick="openEditAllocationModal('${alloc.id}')" title="Ubah atau Hapus pos ini" class="p-1.5 text-gray-400 hover:text-brand-800 rounded-lg hover:bg-gray-50 transition">
+              <i data-lucide="edit-3" class="w-4 h-4"></i>
+            </button>
+          </div>
         </div>
 
         <div>
@@ -911,11 +1063,109 @@ async function submitNewAllocation() {
       showToast(`Pos kantong "${name}" berhasil dibuat!`, 'success');
       closeNewAllocationModal();
       await fetchAllocations();
+      await updateOverviewStats();
     } else {
       showToast(json.message || 'Gagal membuat pos kantong', 'error');
     }
   } catch (err) {
     console.error('Error creating allocation:', err);
+  }
+}
+
+// Modal Edit / Hapus Pos Alokasi
+function openEditAllocationModal(allocId) {
+  const alloc = appState.allocations.find(a => String(a.id) === String(allocId));
+  if (!alloc) return;
+
+  const idEl = document.getElementById('editAllocId');
+  const nameEl = document.getElementById('editAllocName');
+  const targetEl = document.getElementById('editAllocTarget');
+  const iconEl = document.getElementById('editAllocIcon');
+  const colorEl = document.getElementById('editAllocColor');
+
+  if (idEl) idEl.value = alloc.id;
+  if (nameEl) nameEl.value = alloc.name;
+  if (targetEl) targetEl.value = alloc.target || 0;
+  if (iconEl) iconEl.value = alloc.icon || '📦';
+  if (colorEl) colorEl.value = alloc.color || '#166534';
+
+  const modal = document.getElementById('modalEditAllocation');
+  if (modal) modal.classList.remove('hidden');
+  lucide.createIcons();
+}
+
+function closeEditAllocationModal() {
+  const modal = document.getElementById('modalEditAllocation');
+  if (modal) modal.classList.add('hidden');
+}
+
+async function submitEditAllocation() {
+  const idEl = document.getElementById('editAllocId');
+  const nameEl = document.getElementById('editAllocName');
+  const targetEl = document.getElementById('editAllocTarget');
+  const iconEl = document.getElementById('editAllocIcon');
+  const colorEl = document.getElementById('editAllocColor');
+
+  const id = idEl ? idEl.value : null;
+  const name = nameEl ? nameEl.value.trim() : '';
+  const target = targetEl ? Number(targetEl.value) || 0 : 0;
+  const icon = iconEl ? iconEl.value.trim() || '📦' : '📦';
+  const color = colorEl ? colorEl.value || '#166534' : '#166534';
+
+  if (!name) {
+    showToast('Nama pos alokasi tidak boleh kosong!', 'error');
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/allocations/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, target, icon, color })
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      showToast('Pos alokasi berhasil diperbarui!', 'success');
+      closeEditAllocationModal();
+      await fetchAllocations();
+      await updateOverviewStats();
+    } else {
+      showToast(json.message || 'Gagal memperbarui pos alokasi', 'error');
+    }
+  } catch (err) {
+    console.error('Error updating allocation:', err);
+    showToast('Gagal terhubung ke server', 'error');
+  }
+}
+
+async function confirmDeleteCurrentAllocation() {
+  const idEl = document.getElementById('editAllocId');
+  const nameEl = document.getElementById('editAllocName');
+  const id = idEl ? idEl.value : null;
+  const name = nameEl ? nameEl.value : 'ini';
+
+  if (!confirm(`Apakah Anda yakin ingin menghapus pos alokasi "${name}"?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/allocations/${id}`, {
+      method: 'DELETE'
+    });
+
+    const json = await res.json();
+    if (json.success) {
+      showToast(`Pos "${name}" berhasil dihapus`, 'success');
+      closeEditAllocationModal();
+      await fetchAllocations();
+      await updateOverviewStats();
+    } else {
+      showToast(json.message || 'Gagal menghapus pos alokasi', 'error');
+    }
+  } catch (err) {
+    console.error('Error deleting allocation:', err);
+    showToast('Gagal terhubung ke server', 'error');
   }
 }
 
@@ -941,29 +1191,88 @@ function populateMonthSelect() {
   }
 }
 
-async function loadMonthlyReport() {
-  const select = document.getElementById('reportMonthSelect');
-  let year = new Date().getFullYear();
-  let month = new Date().getMonth() + 1;
+async function loadMonthlyReport(customStartDate = null, customEndDate = null) {
+  const startInput = document.getElementById('reportStartDate');
+  const endInput = document.getElementById('reportEndDate');
 
-  if (select && select.value) {
-    const [y, m] = select.value.split('-');
-    year = Number(y);
-    month = Number(m);
-  } else {
-    populateMonthSelect();
+  let startDate = customStartDate !== null ? customStartDate : (startInput ? startInput.value : '');
+  let endDate = customEndDate !== null ? customEndDate : (endInput ? endInput.value : '');
+
+  // Default tanggal awal = tanggal 1 bulan ini, tanggal akhir = hari ini / akhir bulan
+  const now = new Date();
+  if (!startDate && startInput) {
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    const yyyy = firstDay.getFullYear();
+    const mm = String(firstDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(firstDay.getDate()).padStart(2, '0');
+    startInput.value = `${yyyy}-${mm}-${dd}`;
+    startDate = startInput.value;
+  }
+  if (!endDate && endInput) {
+    const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const yyyy = lastDay.getFullYear();
+    const mm = String(lastDay.getMonth() + 1).padStart(2, '0');
+    const dd = String(lastDay.getDate()).padStart(2, '0');
+    endInput.value = `${yyyy}-${mm}-${dd}`;
+    endDate = endInput.value;
+  }
+
+  let url = '/api/reports/monthly';
+  const params = [];
+  if (startDate) params.push(`startDate=${encodeURIComponent(startDate)}`);
+  if (endDate) params.push(`endDate=${encodeURIComponent(endDate)}`);
+  if (params.length > 0) {
+    url += '?' + params.join('&');
   }
 
   try {
-    const res = await fetch(`/api/reports/monthly?year=${year}&month=${month}`);
+    const res = await fetch(url);
     const json = await res.json();
-    if (json.success) {
+    if (json.success && json.data) {
       appState.currentMonthReport = json.data;
+      const periodBadge = document.getElementById('reportPeriodBadge');
+      if (periodBadge && json.data.period?.monthName) {
+        periodBadge.textContent = `Periode: ${json.data.period.monthName}`;
+      }
       renderReportUI(json.data);
     }
   } catch (err) {
     console.error('Error loading report:', err);
   }
+}
+
+function applyReportDateFilter() {
+  const startInput = document.getElementById('reportStartDate');
+  const endInput = document.getElementById('reportEndDate');
+  const s = startInput ? startInput.value : '';
+  const e = endInput ? endInput.value : '';
+
+  if (s && e && s > e) {
+    showToast('Tanggal awal tidak boleh lebih besar dari tanggal akhir', 'error');
+    return;
+  }
+
+  loadMonthlyReport(s, e);
+  showToast('Laporan keuangan diperbarui sesuai rentang tanggal', 'success');
+}
+
+function resetReportDateFilter() {
+  const now = new Date();
+  const startInput = document.getElementById('reportStartDate');
+  const endInput = document.getElementById('reportEndDate');
+
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const s = `${firstDay.getFullYear()}-${pad(firstDay.getMonth() + 1)}-01`;
+  const e = `${lastDay.getFullYear()}-${pad(lastDay.getMonth() + 1)}-${pad(lastDay.getDate())}`;
+
+  if (startInput) startInput.value = s;
+  if (endInput) endInput.value = e;
+
+  loadMonthlyReport(s, e);
+  showToast('Rentang tanggal direset ke bulan ini', 'info');
 }
 
 function renderReportUI(report) {
@@ -1228,8 +1537,8 @@ function renderTransactionsTable(list) {
         ${tx.allocationId ? (appState.allocations.find(a => a.id === tx.allocationId)?.name || 'Pos Terkait') : '-'}
       </td>
       <td class="py-3 px-4">
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono bg-brand-50 text-brand-800 border border-brand-200">
-          <i data-lucide="cpu" class="w-3 h-3"></i> ${tx.aiModel || 'Manual'}
+        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] ${tx.aiParsed ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' : 'bg-gray-100 text-gray-600'}">
+          <i data-lucide="${tx.aiParsed ? 'sparkles' : 'pen-tool'}" class="w-3 h-3"></i> ${tx.aiParsed ? 'Chat AI' : 'Manual'}
         </span>
       </td>
       <td class="py-3 px-4 text-right font-extrabold ${isIncome ? 'text-brand-800' : 'text-gray-900'}">
@@ -1419,12 +1728,16 @@ function renderTeamCards(teamList) {
 }
 
 // ==========================================
-// TAB 6: HUGGING FACE PLAYGROUND
+// TAB 6: PENGATURAN AI
 // ==========================================
 
 function saveHfSettings() {
-  const model = document.getElementById('hfModelSelect').value;
-  const token = document.getElementById('hfTokenInput').value.trim();
+  const modelEl = document.getElementById('hfModelSelect');
+  const tokenEl = document.getElementById('hfTokenInput');
+  if (!modelEl) return;
+
+  const model = modelEl.value;
+  const token = tokenEl ? tokenEl.value.trim() : '';
 
   appState.hfSettings.model = model;
   appState.hfSettings.token = token;
@@ -1437,9 +1750,9 @@ function saveHfSettings() {
   }
 
   const topbar = document.getElementById('topbarAiModel');
-  if (topbar) topbar.textContent = `Hugging Face (${model.split('/')[1] || model})`;
+  if (topbar) topbar.textContent = `Asisten AI`;
 
-  showToast('Pengaturan Hugging Face berhasil disimpan!', 'success');
+  showToast('Pengaturan berhasil disimpan!', 'success');
 }
 
 function setPlaygroundInput(text) {
@@ -1458,7 +1771,7 @@ async function runPlaygroundTest() {
 
   btn.disabled = true;
   btn.innerHTML = `<span class="animate-spin">⌛</span> Menguji...`;
-  output.textContent = '// Menghubungi Hugging Face Serverless Inference API...';
+  output.textContent = '// Memproses transaksi...';
 
   const startTime = performance.now();
 

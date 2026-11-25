@@ -265,7 +265,7 @@ class DataStore {
       date: tx.date || new Date().toISOString(),
       rawChat: tx.rawChat || '',
       aiParsed: !!tx.aiParsed,
-      aiModel: tx.aiModel || 'Hugging Face'
+      aiModel: tx.aiModel || 'Catatkan AI'
     };
 
     this.data.transactions.unshift(newTx);
@@ -483,6 +483,29 @@ class DataStore {
     return alloc;
   }
 
+  async deleteAllocation(id) {
+    const isPg = await this.checkPostgres();
+    if (isPg && this.models?.FundAllocation) {
+      try {
+        const alloc = await this.models.FundAllocation.findByPk(id);
+        if (alloc) {
+          await alloc.destroy();
+          return true;
+        }
+      } catch (err) {
+        console.warn('Postgres deleteAllocation error, fallback to JSON:', err.message);
+      }
+    }
+
+    const idx = this.data.allocations.findIndex((a) => String(a.id) === String(id));
+    if (idx !== -1) {
+      this.data.allocations.splice(idx, 1);
+      this.persist();
+      return true;
+    }
+    return false;
+  }
+
   async transferAllocation(fromId, toId, amount, reason = '') {
     const numAmount = Number(amount);
     if (numAmount <= 0) throw new Error('Nominal transfer harus lebih besar dari 0');
@@ -651,7 +674,7 @@ class DataStore {
   }
 
   // --- Laporan & Rekapitulasi (Scope 3) ---
-  async getMonthlyReport(year, month) {
+  async getMonthlyReport(year, month, startDate, endDate) {
     const y = Number(year) || new Date().getFullYear();
     const m = Number(month) || (new Date().getMonth() + 1);
 
@@ -662,15 +685,50 @@ class DataStore {
     // Hitung total saldo dari semua alokasi
     const totalAllocationsBalance = allocations.reduce((acc, curr) => acc + Number(curr.balance), 0);
 
-    // Hitung pemasukan dan pengeluaran
+    // Tentukan filter rentang tanggal
+    let sDate = null;
+    let eDate = null;
+    let periodName = '';
+
+    const formatDisplayDate = (dStr) => {
+      if (!dStr) return '';
+      const d = new Date(dStr);
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' });
+    };
+
+    if (startDate || endDate) {
+      if (startDate) sDate = new Date(startDate + 'T00:00:00');
+      if (endDate) eDate = new Date(endDate + 'T23:59:59');
+
+      if (startDate && endDate) {
+        periodName = `${formatDisplayDate(startDate)} - ${formatDisplayDate(endDate)}`;
+      } else if (startDate) {
+        periodName = `Mulai ${formatDisplayDate(startDate)}`;
+      } else {
+        periodName = `Hingga ${formatDisplayDate(endDate)}`;
+      }
+    } else {
+      periodName = new Date(y, m - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' });
+      sDate = new Date(y, m - 1, 1, 0, 0, 0);
+      eDate = new Date(y, m, 0, 23, 59, 59);
+    }
+
+    // Filter transaksi berdasarkan rentang tanggal
+    const filteredTransactions = allTransactions.filter((tx) => {
+      if (!tx.date) return true;
+      const txDate = new Date(tx.date);
+      if (sDate && txDate < sDate) return false;
+      if (eDate && txDate > eDate) return false;
+      return true;
+    });
+
+    // Hitung pemasukan dan pengeluaran dari transaksi yang sudah difilter
     let totalIncome = 0;
     let totalExpense = 0;
     const expenseByCategory = {};
     const incomeByCategory = {};
 
-    allTransactions.forEach((tx) => {
-      const d = new Date(tx.date);
-      // Cocokkan bulan jika data banyak, atau hitung semua data yang ada
+    filteredTransactions.forEach((tx) => {
       if (tx.type === 'income') {
         totalIncome += Number(tx.amount);
         incomeByCategory[tx.category] = (incomeByCategory[tx.category] || 0) + Number(tx.amount);
@@ -695,7 +753,7 @@ class DataStore {
     }).sort((a, b) => b.amount - a.amount);
 
     let highestExpense = null;
-    let summaryEvaluation = 'Belum ada data pengeluaran yang tercatat pada bulan ini.';
+    let summaryEvaluation = 'Belum ada data pengeluaran yang tercatat pada periode ini.';
     if (categoryBreakdown.length > 0) {
       highestExpense = categoryBreakdown[0];
       summaryEvaluation = `Pengeluaran terbanyak: ${highestExpense.category} sebesar ${highestExpense.percentage}% (Rp ${highestExpense.amount.toLocaleString('id-ID')}).`;
@@ -717,21 +775,23 @@ class DataStore {
       period: {
         year: y,
         month: m,
-        monthName: new Date(y, m - 1, 1).toLocaleString('id-ID', { month: 'long', year: 'numeric' })
+        startDate: startDate || null,
+        endDate: endDate || null,
+        monthName: periodName
       },
       summary: {
         totalIncome,
         totalExpense,
         netSavings,
         totalAllocationsBalance,
-        totalTransactionsCount: allTransactions.length,
+        totalTransactionsCount: filteredTransactions.length,
         expenseRatio
       },
       highestExpense,
       summaryEvaluation,
       financialAdvice,
       categoryBreakdown,
-      transactions: allTransactions
+      transactions: filteredTransactions
     };
   }
 }

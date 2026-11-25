@@ -5,6 +5,7 @@ const {
   getAllocations,
   createAllocation,
   updateAllocation,
+  deleteAllocation,
   transferBetweenAllocations,
   distributeLumpSum,
 } = require('../controllers/allocationController');
@@ -17,6 +18,9 @@ router.post('/', createAllocation);
 
 // PUT /api/allocations/:id -> Edit target / nama kantong
 router.put('/:id', updateAllocation);
+
+// DELETE /api/allocations/:id -> Hapus kantong alokasi
+router.delete('/:id', deleteAllocation);
 
 // POST /api/allocations/transfer -> Pindah saldo riil antar-kantong (Pos Alokasi Dana)
 router.post('/transfer', transferBetweenAllocations);

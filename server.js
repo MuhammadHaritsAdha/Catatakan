@@ -9,7 +9,7 @@ const { testConnection } = require('./src/config/database');
 const server = app.listen(PORT, async () => {
   console.log(`\n  \x1b[36m🚀 Catatkan - Website AI Pencatat Keuangan Mahasiswa\x1b[0m`);
   console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mLocal:\x1b[0m   \x1b[36mhttp://localhost:${PORT}/\x1b[0m`);
-  console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mModel:\x1b[0m   Hugging Face (${process.env.HF_MODEL || 'Qwen/Qwen2.5-7B-Instruct'})`);
+  console.log(`  \x1b[32m➜\x1b[0m  \x1b[1mAI Engine:\x1b[0m Catatkan Natural Language Engine`);
 
   const dbConnected = await testConnection();
   if (dbConnected) {

@@ -62,7 +62,7 @@
       "id": 1,
       "name": "Tempat Tinggal",
       "description": "Uang kos, wifi, dan listrik bulanan",
-      "balance": 0,
+      "balance": 1950000,
       "target": 650000,
       "color": "#3B82F6",
       "icon": "🏠"
@@ -71,7 +71,7 @@
       "id": 2,
       "name": "Konsumsi",
       "description": "Makan harian, kantin, warteg, galon & snack",
-      "balance": 0,
+      "balance": 1980000,
       "target": 600000,
       "color": "#F59E0B",
       "icon": "🍜"
@@ -80,7 +80,7 @@
       "id": 3,
       "name": "Tugas & Kuliah",
       "description": "Cetak modul, fotokopi, buku kuliah & print praktikum",
-      "balance": 0,
+      "balance": 30000,
       "target": 150000,
       "color": "#8B5CF6",
       "icon": "📚"
@@ -107,13 +107,78 @@
       "id": 6,
       "name": "Tabungan Mahasiswa",
       "description": "Dana darurat dan tabungan masa depan",
-      "balance": 5000000,
+      "balance": 1500000,
       "target": 500000,
       "color": "#06B6D4",
       "icon": "💰"
     }
   ],
   "transactions": [
+    {
+      "id": "tx-1795595616321-423",
+      "description": "Penerimaan dana & pembagian saldo riil ke pos alokasi",
+      "amount": 500000,
+      "type": "income",
+      "category": "Uang Saku / Gaji",
+      "allocationId": 6,
+      "allocationName": "Tabungan Mahasiswa",
+      "date": "2026-11-25T08:33:36.321Z",
+      "rawChat": "Bagi dana riil Rp 500.000",
+      "aiParsed": false,
+      "aiModel": "Hugging Face"
+    },
+    {
+      "id": "tx-1795590427031-414",
+      "description": "Nongkrong warkop",
+      "amount": 25000,
+      "type": "expense",
+      "category": "Lifestyle",
+      "allocationId": 5,
+      "allocationName": "Lifestyle & Nongkrong",
+      "date": "2026-11-25T07:06:50.202Z",
+      "rawChat": "Nongkrong warkop 25k",
+      "aiParsed": true,
+      "aiModel": "Catatkan Engine"
+    },
+    {
+      "id": "tx-1795590328028-864",
+      "description": "Beli bensin pertamax",
+      "amount": 50000,
+      "type": "expense",
+      "category": "Transportasi",
+      "allocationId": 4,
+      "allocationName": "Transportasi",
+      "date": "2026-11-25T07:05:23.777Z",
+      "rawChat": "beli bensin pertamax 50rb",
+      "aiParsed": true,
+      "aiModel": "Catatkan Engine"
+    },
+    {
+      "id": "tx-1795590288778-952",
+      "description": "Tadi ngeprint untuk tugas",
+      "amount": 20000,
+      "type": "expense",
+      "category": "Kuliah",
+      "allocationId": 3,
+      "allocationName": "Tugas & Kuliah",
+      "date": "2026-11-25T07:04:10.891Z",
+      "rawChat": "tadi ngeprint untuk tugas 20rb",
+      "aiParsed": true,
+      "aiModel": "Catatkan Engine"
+    },
+    {
+      "id": "tx-1795505631537-768",
+      "description": "Uang makan beli seblak",
+      "amount": 20000,
+      "type": "expense",
+      "category": "Konsumsi",
+      "allocationId": 2,
+      "allocationName": "Konsumsi",
+      "date": "2026-11-24T07:33:46.277Z",
+      "rawChat": "uang makan 20rb beli seblak",
+      "aiParsed": true,
+      "aiModel": "Qwen/Qwen2.5-7B-Instruct"
+    },
     {
       "id": "tx-1794902638097-460",
       "description": "Dapet kiriman uang bulanan dari papi ai",
@@ -128,6 +193,37 @@
       "aiModel": "Qwen/Qwen2.5-7B-Instruct"
     }
   ],
-  "transferLogs": [],
+  "transferLogs": [
+    {
+      "id": "trf-1795507686152",
+      "fromAllocationId": "1",
+      "fromAllocationName": "Tempat Tinggal",
+      "toAllocationId": "3",
+      "toAllocationName": "Tugas & Kuliah",
+      "amount": 50000,
+      "reason": "Pemindahan saldo via Chat AI",
+      "date": "2026-11-24T08:08:06.152Z"
+    },
+    {
+      "id": "trf-1795505530900",
+      "fromAllocationId": "6",
+      "fromAllocationName": "Tabungan Mahasiswa",
+      "toAllocationId": "1",
+      "toAllocationName": "Tempat Tinggal",
+      "amount": 2000000,
+      "reason": "Pemindahan saldo dari Tabungan Mahasiswa ke Tempat Tinggal",
+      "date": "2026-11-24T07:32:10.900Z"
+    },
+    {
+      "id": "trf-1795505458571",
+      "fromAllocationId": "6",
+      "fromAllocationName": "Tabungan Mahasiswa",
+      "toAllocationId": "2",
+      "toAllocationName": "Konsumsi",
+      "amount": 2000000,
+      "reason": "buat kost",
+      "date": "2026-11-24T07:30:58.571Z"
+    }
+  ],
   "nextId": 1
 }

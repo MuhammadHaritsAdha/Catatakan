@@ -4,8 +4,8 @@ const dataStore = require('../services/dataStore');
 // GET /api/reports/monthly
 const getMonthlyReport = async (req, res) => {
   try {
-    const { year, month } = req.query;
-    const report = await dataStore.getMonthlyReport(year, month);
+    const { year, month, startDate, endDate } = req.query;
+    const report = await dataStore.getMonthlyReport(year, month, startDate, endDate);
     return res.status(200).json({
       success: true,
       message: `Laporan keuangan periode ${report.period.monthName} berhasil diambil`,
